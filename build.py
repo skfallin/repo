@@ -132,6 +132,7 @@ def main():
     (OUT / "depictions").mkdir(parents=True)
     shutil.copytree(ROOT / "debs", OUT / "debs")
     shutil.copy(ROOT / "CydiaIcon.png", OUT)
+    shutil.copytree(ROOT / "sfx", OUT / "sfx")
     if (ROOT / "tweaks").is_dir():
         shutil.copytree(ROOT / "tweaks", OUT / "tweaks")
 

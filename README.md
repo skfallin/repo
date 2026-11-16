@@ -13,6 +13,13 @@ The GitHub Action runs `build.py`, which generates `Packages`, `Release`, the de
 
 The landing page is the maze game in `maze.html`; `build.py` fills in the packages.
 
+Sounds in `sfx/` are CC0 (public domain) from Freesound, found via Openverse, trimmed and normalized:
+
+- `music.mp3`: [Happy](https://freesound.org/s/395244/) by Hoshi_Hana
+- `pickup.mp3`: [Retro, Coin 05](https://freesound.org/s/443258/) by MATRIXXX_
+- `win.mp3`: [Powerup01](https://freesound.org/s/341242/) by jeremysykes
+- `step.mp3`: one step from [8-bit footsteps](https://freesound.org/s/501102/) by EVRetro
+
 Build locally (needs `brew install dpkg`): `python3 build.py`, output in `_site/`.
 
 ## Tweak page extras

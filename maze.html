@@ -24,7 +24,7 @@ p{margin:10px 0;color:var(--mut)}
 canvas{width:min(100vw - 52px,608px);image-rendering:pixelated;touch-action:none;cursor:grab}
 /* second rule on purpose: iOS < 15.4 has no dvh and drops it */
 canvas{width:min(100vw - 52px,608px,max(100dvh - 340px,260px))}
-#again{padding:0;background:none;border:0;color:var(--hi);font:inherit;text-decoration:underline;cursor:pointer}
+#again,#sound{padding:0;background:none;border:0;color:var(--hi);font:inherit;text-decoration:underline;cursor:pointer}
 .btn{display:inline-block;margin:6px;padding:10px 16px;background:var(--acc);color:#fff;font:12px/1.5 var(--px);text-decoration:none;border:2px solid var(--fg);box-shadow:4px 4px 0 #000;cursor:pointer}
 .btn:active{transform:translate(4px,4px);box-shadow:none}
 .btn.alt{background:var(--bg)}
@@ -49,7 +49,7 @@ dialog h2{margin:12px 0;font:16px/1.5 var(--px)}
 <p>The tweaks are hidden in the maze. Go get them.</p>
 <p id="hud" aria-live="polite">&nbsp;</p>
 <div class="screen"><canvas id="maze" role="img" aria-label="Maze game. The same tweaks are listed under Skip the maze, below."></canvas></div>
-<p>Swipe or use the arrow keys · <button id="again">new maze</button></p>
+<p>Swipe or use the arrow keys · <button id="again">new maze</button> · <button id="sound" aria-pressed="true">sound on</button></p>
 <noscript><p>The maze needs JavaScript. The tweaks are listed below.</p></noscript>
 <nav><a class="btn" href="sileo://source/__BASE__/">Add to Sileo</a><a class="btn" href="zbra://sources/add/__BASE__/">Add to Zebra</a></nav>
 <p>Or add the source by hand: <code>__BASE__/</code></p>
@@ -148,11 +148,18 @@ function frame(now) {
     if (ox !== px || oy !== py) {  // just landed on a new tile
       ox = px; oy = py;
       const it = items.find(i => i.x === px && i.y === py);
-      if (it) { it.found = true; dir = want = null; score(); show(it.p); }
+      if (it) {
+        play(it.found || !items.every(i => i.found || i === it) ? 'pickup' : 'win');
+        it.found = true; dir = want = null; score(); show(it.p);
+      }
     }
     seen[py][px] = 1;
     // keep running until a wall; a queued turn (want) wins as soon as it is open
-    if (!dlg.open) for (const d of [want, dir]) if (d && !grid[py+d[1]][px+d[0]]) { px += d[0]; py += d[1]; dir = d; mt = now; break; }
+    if (!dlg.open) for (const d of [want, dir]) if (d && !grid[py+d[1]][px+d[0]]) {
+      px += d[0]; py += d[1]; dir = d; mt = now;
+      if (++steps % 2) play('step');  // every tile is too busy at this speed
+      break;
+    }
   }
   draw(Math.min(1, (now - mt) / MOVE), now);
   requestAnimationFrame(frame);
@@ -175,6 +182,33 @@ cv.onpointermove = e => {
 };
 cv.onpointerup = cv.onpointercancel = () => p0 = null;
 again.onclick = () => { start(); again.blur(); };
+
+// sound: CC0 clips (credits in README); browsers allow audio only after a user gesture
+const SFX = {step: .35, pickup: .7, win: .7, music: .3};  // gains, mix checked with earshot
+const snd = document.getElementById('sound'), buf = {};
+let ac, muted = false, steps = 0;
+try { muted = localStorage.getItem('muted') === '1'; } catch {}
+function label() { snd.textContent = muted ? 'sound off' : 'sound on'; snd.setAttribute('aria-pressed', !muted); }
+function unlock() {
+  if (muted || !window.AudioContext) return;
+  if (ac) return void ac.resume();
+  ac = new AudioContext();
+  for (const k in SFX) fetch(`/sfx/${k}.mp3`).then(r => r.arrayBuffer()).then(b => ac.decodeAudioData(b))
+    .then(b => { buf[k] = b; if (k === 'music') play('music', true); }).catch(() => {});
+}
+function play(k, loop) {
+  if (!ac || muted || !buf[k]) return;
+  const s = ac.createBufferSource(), v = ac.createGain();
+  s.buffer = buf[k]; s.loop = !!loop; v.gain.value = SFX[k];
+  s.connect(v).connect(ac.destination); s.start();
+}
+for (const t of ['keydown', 'pointerup', 'touchend']) addEventListener(t, unlock);
+snd.onclick = () => {
+  muted = !muted; label(); snd.blur();
+  try { localStorage.setItem('muted', muted ? '1' : '0'); } catch {}
+  if (muted) ac?.suspend(); else unlock();
+};
+label();
 
 start();
 requestAnimationFrame(frame);
