@@ -11,6 +11,8 @@ Add it in Sileo or Zebra: `https://repo.torinz.it/`
 
 The GitHub Action runs `build.py`, which generates `Packages`, `Release`, the depictions and the landing page, then deploys to GitHub Pages.
 
+The landing page is the maze game in `maze.html`; `build.py` fills in the packages.
+
 Build locally (needs `brew install dpkg`): `python3 build.py`, output in `_site/`.
 
 ## Tweak page extras

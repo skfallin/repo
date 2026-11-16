@@ -81,14 +81,11 @@ PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 @media (prefers-color-scheme:dark){{:root{{--bg:#000;--card:#1c1c1e;--fg:#f5f5f7;--mut:#98989d}}}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,system-ui,sans-serif}}
 main{{max-width:640px;margin:0 auto;padding:32px 16px}}h1{{margin:.2em 0}}p{{color:var(--mut)}}
-.card{{background:var(--card);border-radius:14px;padding:16px;margin:12px 0;display:block;color:inherit;text-decoration:none}}
-.card b{{display:block}}.card span{{color:var(--mut);font-size:14px}}
 .btn{{display:inline-block;background:var(--acc);color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;margin:4px 6px 4px 0}}
 dl{{display:grid;grid-template-columns:auto 1fr;gap:6px 16px}}dt{{color:var(--mut)}}dd{{margin:0}}
-img.icon{{width:72px;height:72px;border-radius:16px}}img.banner{{width:100%%;border-radius:14px}}
-.card img{{width:48px;height:48px;border-radius:11px;float:left;margin-right:12px}}.card:after{{content:"";display:block;clear:both}}
+img.banner{{width:100%%;border-radius:14px}}code{{word-break:break-all}}
 .shots{{display:flex;gap:10px;overflow-x:auto}}.shots img{{height:340px;border-radius:8px}}#md table{{border-collapse:collapse}}
-#md td,#md th{{border:1px solid var(--mut);padding:4px 8px}}code{{word-break:break-all}}
+#md td,#md th{{border:1px solid var(--mut);padding:4px 8px}}
 </style></head><body><main>{body}</main></body></html>""" % TINT
 
 
@@ -118,11 +115,16 @@ def index_html(pkgs):
         f'<img src="{extras(p)["icon"] or "/CydiaIcon.png"}" alt=""><b>{esc(p.get("Name", p["Package"]))}</b>'
         f'<span>{esc(p["Version"])} · {esc(compat(p))}</span><br><span>{esc(p.get("Description"))}</span></a>'
         for p in pkgs)
-    body = (f'<img class="icon" src="/CydiaIcon.png" alt=""><h1>{REPO["Label"]}</h1><p>{REPO["Description"]}.</p>'
-            f'<a class="btn" href="sileo://source/{BASE}/">Add to Sileo</a>'
-            f'<a class="btn" href="zbra://sources/add/{BASE}/">Add to Zebra</a>'
-            f'<p>Or add this source manually: <code>{BASE}/</code></p><h2>Packages</h2>{cards}')
-    return PAGE.format(title=REPO["Label"], body=body)
+    data = [{"name": p.get("Name", p["Package"]), "meta": f'{p["Version"]} · {compat(p)}',
+             "desc": p.get("Description", ""), "url": f'/depictions/{p["Package"]}.html',
+             "icon": extras(p)["icon"] or "/CydiaIcon.png"} for p in pkgs]
+    tpl = (ROOT / "maze.html").read_text()
+    marks = {"/*PKGS*/[]": json.dumps(data).replace("</", "<\\/"),  # "</" would close the <script>
+             "<!--CARDS-->": cards, "__BASE__": BASE}
+    for mark, val in marks.items():
+        assert mark in tpl, f"maze.html lost its {mark} placeholder"
+        tpl = tpl.replace(mark, val)
+    return tpl
 
 
 def main():

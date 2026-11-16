@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Torinz Repo</title>
+<meta name="description" content="Rootless tweaks by skfallin. Find them in the maze, or add the repo to Sileo or Zebra.">
+<meta name="theme-color" content="#0b0a1a">
+<link rel="icon" href="/CydiaIcon.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+:root{color-scheme:dark;--bg:#0b0a1a;--fg:#e8e6ff;--mut:#9d9ad0;--acc:#4d5cf2;--hi:#ffd23f;--gem:#3df2c9;--px:"Press Start 2P",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:22px/1.25 VT323,ui-monospace,Menlo,monospace;text-align:center}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;align-items:center;justify-content:center;gap:12px}
+header img{border:2px solid var(--fg)}
+h1{margin:0;font:clamp(18px,5.6vw,30px)/1.3 var(--px);text-transform:uppercase;text-shadow:3px 3px 0 var(--acc)}
+p{margin:10px 0;color:var(--mut)}
+#hud{color:var(--hi);font:12px/1.5 var(--px);text-transform:uppercase}
+.screen{position:relative;display:inline-block;line-height:0;border:4px solid var(--fg);box-shadow:8px 8px 0 var(--acc)}
+.screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(#0000 0 3px,#0002 3px 4px)}
+canvas{width:min(100vw - 52px,608px);image-rendering:pixelated;touch-action:none;cursor:grab}
+/* second rule on purpose: iOS < 15.4 has no dvh and drops it */
+canvas{width:min(100vw - 52px,608px,max(100dvh - 340px,260px))}
+#again{padding:0;background:none;border:0;color:var(--hi);font:inherit;text-decoration:underline;cursor:pointer}
+.btn{display:inline-block;margin:6px;padding:10px 16px;background:var(--acc);color:#fff;font:12px/1.5 var(--px);text-decoration:none;border:2px solid var(--fg);box-shadow:4px 4px 0 #000;cursor:pointer}
+.btn:active{transform:translate(4px,4px);box-shadow:none}
+.btn.alt{background:var(--bg)}
+:focus-visible{outline:3px solid var(--hi);outline-offset:3px}
+code{display:inline-block;color:var(--fg);font:inherit}
+details{margin-top:28px}
+summary{color:var(--mut);cursor:pointer}
+.card{display:block;margin:12px 0;padding:12px;border:2px solid var(--acc);color:var(--fg);text-align:left;text-decoration:none}
+.card img{float:left;width:48px;height:48px;margin-right:12px;border:2px solid var(--fg)}
+.card::after{content:"";display:block;clear:both}
+.card b{display:block}
+.card span{color:var(--mut)}
+dialog{max-width:min(420px,100vw - 32px);padding:20px;background:var(--bg);color:var(--fg);border:4px solid var(--fg);box-shadow:8px 8px 0 var(--gem)}
+dialog::backdrop{background:#000c}
+dialog h2{margin:12px 0;font:16px/1.5 var(--px)}
+.tag{color:var(--gem);font:12px/1.5 var(--px);text-transform:uppercase}
+</style>
+</head>
+<body>
+<main>
+<header><img src="/CydiaIcon.png" alt="" width="40" height="40"><h1>Torinz Repo</h1></header>
+<p>The tweaks are hidden in the maze. Go get them.</p>
+<p id="hud" aria-live="polite">&nbsp;</p>
+<div class="screen"><canvas id="maze" role="img" aria-label="Maze game. The same tweaks are listed under Skip the maze, below."></canvas></div>
+<p>Swipe or use the arrow keys · <button id="again">new maze</button></p>
+<noscript><p>The maze needs JavaScript. The tweaks are listed below.</p></noscript>
+<nav><a class="btn" href="sileo://source/__BASE__/">Add to Sileo</a><a class="btn" href="zbra://sources/add/__BASE__/">Add to Zebra</a></nav>
+<p>Or add the source by hand: <code>__BASE__/</code></p>
+<details><summary>Skip the maze</summary><!--CARDS--></details>
+</main>
+<dialog id="found">
+<p class="tag">Tweak found!</p><img alt="" width="64" height="64" style="border:2px solid var(--fg)"><h2></h2><p class="meta"></p><p class="desc"></p>
+<form method="dialog"><a class="btn" href="">Details</a><button class="btn alt">Keep exploring</button></form>
+</dialog>
+<script>
+const PKGS = /*PKGS*/[];  // filled by build.py
+const N = 19, T = 8, MOVE = 85, STEP = [[1,0],[-1,0],[0,1],[0,-1]];
+const KEYS = {arrowright:STEP[0],arrowleft:STEP[1],arrowdown:STEP[2],arrowup:STEP[3],d:STEP[0],a:STEP[1],s:STEP[2],w:STEP[3]};
+const PAL = {y:'#ffd23f',k:'#0b0a1a',o:'#ff7a45',w:'#fff',c:'#3df2c9'};
+const HERO = ['..yyyy..','.yyyyyy.','.ykyyky.','.yyyyyy.','..oooo..','.oooooo.','..o..o..','.oo..oo.'];
+const GEM = ['...ww...','..wccw..','.wccccw.','.cccccc.','..cccc..','...cc...'];
+const cv = document.getElementById('maze'), g = cv.getContext('2d');
+const hud = document.getElementById('hud'), dlg = document.getElementById('found'), again = document.getElementById('again');
+cv.width = cv.height = N * T;
+let grid, seen, items, px, py, ox, oy, dir, want, mt = 0;
+
+function dist(sx, sy) {  // BFS steps from (sx,sy) to every open tile
+  const d = grid.map(r => r.map(() => -1));
+  d[sy][sx] = 0;
+  for (const q = [[sx, sy]]; q.length;) {
+    const [x, y] = q.shift();
+    for (const [dx, dy] of STEP) if (!grid[y+dy][x+dx] && d[y+dy][x+dx] < 0) { d[y+dy][x+dx] = d[y][x] + 1; q.push([x+dx, y+dy]); }
+  }
+  return d;
+}
+
+function start() {
+  grid = Array.from({length: N}, () => Array(N).fill(1));
+  seen = grid.map(r => r.map(() => 0));
+  px = py = ox = oy = N >> 1; dir = want = null;
+  grid[py][px] = 0;
+  for (const st = [[px, py]]; st.length;) {  // depth-first carve, rooms on odd coordinates
+    const [x, y] = st[st.length - 1];
+    const o = STEP.filter(([dx, dy]) => grid[y+2*dy]?.[x+2*dx] === 1);
+    if (!o.length) { st.pop(); continue; }
+    const [dx, dy] = o[Math.random() * o.length | 0];
+    grid[y+dy][x+dx] = grid[y+2*dy][x+2*dx] = 0;
+    st.push([x+2*dx, y+2*dy]);
+  }
+  // each tweak goes to the room farthest from the start and from the tweaks already placed
+  // shortcut: 80 rooms, so past ~80 packages tweaks overlap; grow N then
+  const ds = [dist(px, py)];
+  items = PKGS.map(p => {
+    let best, bv = -1;
+    for (let y = 1; y < N; y += 2) for (let x = 1; x < N; x += 2) {
+      const v = Math.min(...ds.map(d => d[y][x]));
+      if (v > bv) { bv = v; best = [x, y]; }
+    }
+    ds.push(dist(...best));
+    return {p, x: best[0], y: best[1], found: false};
+  });
+  console.assert(items.every(i => ds[0][i.y][i.x] > 0), 'tweak unreachable');
+  score();
+}
+
+function score() {
+  const n = items.filter(i => i.found).length;
+  hud.textContent = n && n === items.length ? 'All tweaks found. Nice.' : `Tweaks found ${n}/${items.length}`;
+}
+
+function show(p) {
+  if (!dlg.showModal) return void (location.href = p.url);  // iOS < 15.4 has no <dialog>
+  dlg.querySelector('img').src = p.icon;
+  dlg.querySelector('h2').textContent = p.name;
+  dlg.querySelector('.meta').textContent = p.meta;
+  dlg.querySelector('.desc').textContent = p.desc;
+  dlg.querySelector('a').href = p.url;
+  dlg.showModal();
+}
+
+function sprite(rows, x, y) {
+  rows.forEach((r, j) => [...r].forEach((c, i) => { if (PAL[c]) { g.fillStyle = PAL[c]; g.fillRect(x + i, y + j, 1, 1); } }));
+}
+
+function draw(k, now) {
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    g.fillStyle = grid[y][x] ? '#4d5cf2' : seen[y][x] ? '#221e52' : '#100e26';
+    g.fillRect(x*T, y*T, T, T);
+    if (grid[y][x]) { g.fillStyle = '#8f99ff'; g.fillRect(x*T, y*T, T, 1); g.fillStyle = '#2a2f9e'; g.fillRect(x*T, y*T + T - 2, T, 2); }
+  }
+  for (const i of items) {
+    g.globalAlpha = i.found ? .25 : 1;
+    sprite(GEM, i.x*T, i.y*T + 1 + (i.found ? 0 : Math.round(Math.sin(now / 300))));
+  }
+  g.globalAlpha = 1;
+  sprite(HERO, Math.round((ox + (px - ox) * k) * T), Math.round((oy + (py - oy) * k) * T));
+}
+
+function frame(now) {
+  if (now - mt >= MOVE) {
+    if (ox !== px || oy !== py) {  // just landed on a new tile
+      ox = px; oy = py;
+      const it = items.find(i => i.x === px && i.y === py);
+      if (it) { it.found = true; dir = want = null; score(); show(it.p); }
+    }
+    seen[py][px] = 1;
+    // keep running until a wall; a queued turn (want) wins as soon as it is open
+    if (!dlg.open) for (const d of [want, dir]) if (d && !grid[py+d[1]][px+d[0]]) { px += d[0]; py += d[1]; dir = d; mt = now; break; }
+  }
+  draw(Math.min(1, (now - mt) / MOVE), now);
+  requestAnimationFrame(frame);
+}
+
+addEventListener('keydown', e => {
+  const d = KEYS[e.key.toLowerCase()];
+  // only steer from the page itself, so arrows still work normally on links and the list
+  if (!d || e.metaKey || e.ctrlKey || e.altKey || dlg.open || !['BODY', 'CANVAS'].includes(e.target.tagName)) return;
+  want = d; e.preventDefault();
+});
+let p0;
+cv.onpointerdown = e => { p0 = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); };
+cv.onpointermove = e => {
+  if (!p0) return;
+  const dx = e.clientX - p0[0], dy = e.clientY - p0[1];
+  if (Math.hypot(dx, dy) < 14) return;
+  want = Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+  p0 = [e.clientX, e.clientY];  // re-anchor so one drag can steer several turns
+};
+cv.onpointerup = cv.onpointercancel = () => p0 = null;
+again.onclick = () => { start(); again.blur(); };
+
+start();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
