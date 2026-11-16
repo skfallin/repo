@@ -157,7 +157,7 @@ function frame(now) {
     // keep running until a wall; a queued turn (want) wins as soon as it is open
     if (!dlg.open) for (const d of [want, dir]) if (d && !grid[py+d[1]][px+d[0]]) {
       px += d[0]; py += d[1]; dir = d; mt = now;
-      if (++steps % 2) play('step');  // every tile is too busy at this speed
+      if (++steps % 3 === 1) play('step');  // every tile is too busy at this speed
       break;
     }
   }
@@ -184,7 +184,7 @@ cv.onpointerup = cv.onpointercancel = () => p0 = null;
 again.onclick = () => { start(); again.blur(); };
 
 // sound: CC0 clips (credits in README); browsers allow audio only after a user gesture
-const SFX = {step: .35, pickup: .7, win: .7, music: .3};  // gains, mix checked with earshot
+const SFX = {step: .2, pickup: .3, win: .3, music: .18};  // gains, mix checked with earshot (~-26 LUFS)
 const snd = document.getElementById('sound'), buf = {};
 let ac, muted = false, steps = 0;
 try { muted = localStorage.getItem('muted') === '1'; } catch {}

@@ -18,10 +18,10 @@ The landing page is the maze game in `maze.html`; `build.py` fills in the packag
 
 Sounds in `sfx/` are CC0 (public domain) from Freesound, found via Openverse, trimmed and normalized:
 
-- `music.mp3`: [Happy](https://freesound.org/s/395244/) by Hoshi_Hana
-- `pickup.mp3`: [Retro, Coin 05](https://freesound.org/s/443258/) by MATRIXXX_
-- `win.mp3`: [Powerup01](https://freesound.org/s/341242/) by jeremysykes
-- `step.mp3`: one step from [8-bit footsteps](https://freesound.org/s/501102/) by EVRetro
+- `music.mp3`: [Aesthetic Lofi Loop](https://freesound.org/s/679187/) by Seth_Makes_Sounds
+- `pickup.mp3`: [Kalimba A4](https://freesound.org/s/441135/) by nemaavla
+- `win.mp3`: [Soft Short App Melody](https://freesound.org/s/619837/) by CogFireStudios
+- `step.mp3`: [cartoon pop or drip](https://freesound.org/s/221091/) by AlaskaRobotics
 
 Build locally (needs `brew install dpkg`): `python3 build.py`, output in `_site/`.
 
