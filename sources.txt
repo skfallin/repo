@@ -1,0 +1,3 @@
+# GitHub repos whose release .deb files go into the repo (one owner/name per line)
+skfallin/FakepassReborn
+skfallin/ShortcutsNoConfirm

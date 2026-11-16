@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build the APT repo + website into _site/. Needs dpkg-scanpackages (dpkg-dev)."""
-import bz2, gzip, hashlib, html, json, lzma, re, shutil, subprocess
+import bz2, gzip, hashlib, html, json, lzma, os, re, shutil, subprocess, urllib.request
 from pathlib import Path
 
 BASE = "https://repo.torinz.it"
@@ -127,10 +127,32 @@ def index_html(pkgs):
     return tpl
 
 
+def github(url):
+    token = os.environ.get("GITHUB_TOKEN")  # optional; avoids the 60 requests/hour anonymous limit
+    hdr = {"Authorization": f"Bearer {token}"} if token else {}
+    return urllib.request.urlopen(urllib.request.Request(url, headers=hdr)).read()
+
+
+def fetch_releases():
+    """Download every .deb attached to a published release of the repos listed in sources.txt."""
+    repos = [l.split("#")[0].strip() for l in (ROOT / "sources.txt").read_text().splitlines()]
+    for repo in filter(None, repos):
+        for rel in json.loads(github(f"https://api.github.com/repos/{repo}/releases?per_page=100")):
+            for a in rel["assets"]:
+                dst = OUT / "debs" / a["name"]
+                if rel["draft"] or not a["name"].endswith(".deb") or dst.exists():
+                    continue
+                blob = github(a["browser_download_url"])
+                assert a.get("digest") in (None, "sha256:" + hashlib.sha256(blob).hexdigest()), f"{a['name']}: bad sha256"
+                dst.write_bytes(blob)
+                print(f"Fetched {repo} {rel['tag_name']}: {a['name']}")
+
+
 def main():
     shutil.rmtree(OUT, ignore_errors=True)
     (OUT / "depictions").mkdir(parents=True)
     shutil.copytree(ROOT / "debs", OUT / "debs")
+    fetch_releases()
     shutil.copy(ROOT / "CydiaIcon.png", OUT)
     shutil.copytree(ROOT / "sfx", OUT / "sfx")
     if (ROOT / "tweaks").is_dir():
@@ -163,7 +185,7 @@ def main():
         if not cur or subprocess.run(["dpkg", "--compare-versions", p["Version"], "gt", cur["Version"]]).returncode == 0:
             latest[p["Package"]] = p
     for d in (ROOT / "tweaks").glob("*/"):  # catch folder names that match no package
-        assert d.name in latest, f"tweaks/{d.name} matches no package in debs/"
+        assert d.name in latest, f"tweaks/{d.name} matches no package in debs/ or releases"
     for p in latest.values():
         (OUT / "depictions" / f"{p['Package']}.json").write_text(json.dumps(depiction_json(p), indent=2))
         (OUT / "depictions" / f"{p['Package']}.html").write_text(depiction_html(p))

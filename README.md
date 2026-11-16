@@ -6,10 +6,13 @@ Add it in Sileo or Zebra: `https://repo.torinz.it/`
 
 ## Publishing a tweak
 
-1. Put the `.deb` in `debs/` (old versions can stay or go).
-2. Commit and push to `main`.
+Automatic: in the tweak's own repo, publish a GitHub release with the `.deb` attached. Within about 15 minutes it is live here. Every `.deb` of every release (pre-releases included, drafts excluded) of the repos in `sources.txt` is served, and the pages show the newest version.
 
-The GitHub Action runs `build.py`, which generates `Packages`, `Release`, the depictions and the landing page, then deploys to GitHub Pages.
+- New tweak: add its `owner/repo` line to `sources.txt` and push.
+- Don't want to wait: `gh workflow run deploy.yml -R skfallin/repo`.
+- A `.deb` without a release can still go in `debs/` and be pushed by hand.
+
+The GitHub Action runs `build.py`, which downloads the release `.deb` files, generates `Packages`, `Release`, the depictions and the landing page, then deploys to GitHub Pages. Pushes always deploy; the 15-minute scheduled run deploys only when the package list changed.
 
 The landing page is the maze game in `maze.html`; `build.py` fills in the packages.
 
