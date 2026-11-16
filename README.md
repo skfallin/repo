@@ -12,3 +12,14 @@ Add it in Sileo or Zebra: `https://repo.torinz.it/`
 The GitHub Action runs `build.py`, which generates `Packages`, `Release`, the depictions and the landing page, then deploys to GitHub Pages.
 
 Build locally (needs `brew install dpkg`): `python3 build.py`, output in `_site/`.
+
+## Tweak page extras
+
+Optional, per tweak, in `tweaks/<Package>/` (folder name = the `Package` field):
+
+- `icon.png`: square, shown in the package list
+- `banner.png`: wide header (content in the middle ~60%, Sileo crops the sides)
+- `description.md`: long description in Markdown
+- `screenshots/`: PNG/JPG, shown in file-name order
+
+Anything missing is simply left out.

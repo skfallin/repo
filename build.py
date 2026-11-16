@@ -43,16 +43,35 @@ def compat(p):
     return "iOS " + m.group(1).replace("= ", "").strip() if m else "rootless"
 
 
+def extras(p):
+    """Optional per-tweak assets in tweaks/<Package>/: icon.png, banner.png, description.md, screenshots/."""
+    d, url = ROOT / "tweaks" / p["Package"], f"{BASE}/tweaks/{p['Package']}"
+    shots = sorted((d / "screenshots").glob("*")) if (d / "screenshots").is_dir() else []
+    return {
+        "icon": f"{url}/icon.png" if (d / "icon.png").is_file() else None,
+        "banner": f"{url}/banner.png" if (d / "banner.png").is_file() else None,
+        "md": (d / "description.md").read_text() if (d / "description.md").is_file() else p.get("Description", ""),
+        "shots": [f"{url}/screenshots/{f.name}" for f in shots if f.suffix.lower() in (".png", ".jpg", ".jpeg")],
+    }
+
+
 def depiction_json(p):
+    x = extras(p)
     rows = [("Version", p["Version"]), ("Compatibility", compat(p)), ("Author", p.get("Author", "")),
             ("Section", p.get("Section", ""))]
-    views = [{"class": "DepictionMarkdownView", "markdown": p.get("Description", "")},
-             {"class": "DepictionSeparatorView"}]
+    views = []
+    if x["shots"]:
+        views.append({"class": "DepictionScreenshotsView", "itemCornerRadius": 8, "itemSize": "{160, 346}",
+                      "screenshots": [{"url": u, "accessibilityText": "Screenshot"} for u in x["shots"]]})
+    views += [{"class": "DepictionMarkdownView", "markdown": x["md"]}, {"class": "DepictionSeparatorView"}]
     views += [{"class": "DepictionTableTextView", "title": t, "text": v} for t, v in rows if v]
     if p.get("Homepage"):
         views.append({"class": "DepictionTableButtonView", "title": "Source code", "action": p["Homepage"]})
-    return {"minVersion": "0.1", "class": "DepictionTabView", "tintColor": TINT,
-            "tabs": [{"tabname": "Details", "class": "DepictionStackView", "views": views}]}
+    dep = {"minVersion": "0.1", "class": "DepictionTabView", "tintColor": TINT,
+           "tabs": [{"tabname": "Details", "class": "DepictionStackView", "views": views}]}
+    if x["banner"]:
+        dep["headerImage"] = x["banner"]
+    return dep
 
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -66,7 +85,10 @@ main{{max-width:640px;margin:0 auto;padding:32px 16px}}h1{{margin:.2em 0}}p{{col
 .card b{{display:block}}.card span{{color:var(--mut);font-size:14px}}
 .btn{{display:inline-block;background:var(--acc);color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;margin:4px 6px 4px 0}}
 dl{{display:grid;grid-template-columns:auto 1fr;gap:6px 16px}}dt{{color:var(--mut)}}dd{{margin:0}}
-img.icon{{width:72px;height:72px;border-radius:16px}}code{{word-break:break-all}}
+img.icon{{width:72px;height:72px;border-radius:16px}}img.banner{{width:100%%;border-radius:14px}}
+.card img{{width:48px;height:48px;border-radius:11px;float:left;margin-right:12px}}.card:after{{content:"";display:block;clear:both}}
+.shots{{display:flex;gap:10px;overflow-x:auto}}.shots img{{height:340px;border-radius:8px}}#md table{{border-collapse:collapse}}
+#md td,#md th{{border:1px solid var(--mut);padding:4px 8px}}code{{word-break:break-all}}
 </style></head><body><main>{body}</main></body></html>""" % TINT
 
 
@@ -75,17 +97,25 @@ def esc(s):
 
 
 def depiction_html(p):
+    x = extras(p)
     rows = [("Version", p["Version"]), ("Compatibility", compat(p)), ("Author", p.get("Author")),
             ("Depends", p.get("Depends"))]
     dl = "".join(f"<dt>{t}</dt><dd>{esc(v)}</dd>" for t, v in rows if v)
     src = f'<a class="btn" href="{esc(p["Homepage"])}">Source code</a>' if p.get("Homepage") else ""
-    body = f'<h1>{esc(p.get("Name", p["Package"]))}</h1><p>{esc(p.get("Description"))}</p><dl>{dl}</dl>{src}'
+    banner = f'<img class="banner" src="{x["banner"]}" alt="">' if x["banner"] else ""
+    shots = "".join(f'<img src="{u}" alt="Screenshot">' for u in x["shots"])
+    md = json.dumps(x["md"]).replace("</", "<\\/")  # markdown is ours; escape only to keep the script tag intact
+    body = (f'{banner}<h1>{esc(p.get("Name", p["Package"]))}</h1>'
+            f'<div class="shots">{shots}</div><div id="md"><p>{esc(p.get("Description"))}</p></div><dl>{dl}</dl>{src}'
+            '<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>'
+            f'<script>document.getElementById("md").innerHTML = marked.parse({md});</script>')
     return PAGE.format(title=esc(p.get("Name", p["Package"])), body=body)
 
 
 def index_html(pkgs):
     cards = "".join(
-        f'<a class="card" href="/depictions/{esc(p["Package"])}.html"><b>{esc(p.get("Name", p["Package"]))}</b>'
+        f'<a class="card" href="/depictions/{esc(p["Package"])}.html">'
+        f'<img src="{extras(p)["icon"] or "/CydiaIcon.png"}" alt=""><b>{esc(p.get("Name", p["Package"]))}</b>'
         f'<span>{esc(p["Version"])} · {esc(compat(p))}</span><br><span>{esc(p.get("Description"))}</span></a>'
         for p in pkgs)
     body = (f'<img class="icon" src="/CydiaIcon.png" alt=""><h1>{REPO["Label"]}</h1><p>{REPO["Description"]}.</p>'
@@ -100,6 +130,8 @@ def main():
     (OUT / "depictions").mkdir(parents=True)
     shutil.copytree(ROOT / "debs", OUT / "debs")
     shutil.copy(ROOT / "CydiaIcon.png", OUT)
+    if (ROOT / "tweaks").is_dir():
+        shutil.copytree(ROOT / "tweaks", OUT / "tweaks")
 
     raw = subprocess.run(["dpkg-scanpackages", "-m", "debs", "/dev/null"], cwd=OUT,
                          capture_output=True, text=True, check=True).stdout
@@ -108,7 +140,7 @@ def main():
         assert (OUT / p["Filename"]).is_file(), p["Filename"]
         p["Depiction"] = f"{BASE}/depictions/{p['Package']}.html"
         p["SileoDepiction"] = f"{BASE}/depictions/{p['Package']}.json"
-        p["Icon"] = f"{BASE}/CydiaIcon.png"
+        p["Icon"] = extras(p)["icon"] or f"{BASE}/CydiaIcon.png"
 
     data = dump(pkgs).encode()
     files = {"Packages": data, "Packages.gz": gzip.compress(data), "Packages.bz2": bz2.compress(data),
@@ -127,6 +159,8 @@ def main():
         cur = latest.get(p["Package"])
         if not cur or subprocess.run(["dpkg", "--compare-versions", p["Version"], "gt", cur["Version"]]).returncode == 0:
             latest[p["Package"]] = p
+    for d in (ROOT / "tweaks").glob("*/"):  # catch folder names that match no package
+        assert d.name in latest, f"tweaks/{d.name} matches no package in debs/"
     for p in latest.values():
         (OUT / "depictions" / f"{p['Package']}.json").write_text(json.dumps(depiction_json(p), indent=2))
         (OUT / "depictions" / f"{p['Package']}.html").write_text(depiction_html(p))
